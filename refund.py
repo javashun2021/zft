@@ -66,6 +66,11 @@ def refund():
             continue
 
         refund_success = False
+
+        length = len(order_no)
+        if length == 29:
+            query_key = "platformOutTradeNo"
+
         for i in range(6):
             begin, end = get_month_range(i)
             url = f"https://home.zhilianzhifu.com/api/v1/merchant-order?pageIndex=1&pageSize=10&{query_key}={order_no}&statisticType=1&beginTime={begin}&endTime={end}"
