@@ -57,6 +57,55 @@ def handle_text(update, context):
                 update.message.reply_text(f"❌ 请求错误：{str(e)}")
         else:
             update.message.reply_text("⚠️ 格式错误，请发送格式如：退款 T3XXXXXX")
+    elif message.startswith("查单"):
+        # 提取订单号（假设格式是 查询 + 空格 + 订单号）
+        match = re.search(r'查单\s*([A-Z0-9,]+)', message)
+        if match:
+            order_nos = match.group(1)
+            update.message.reply_text(f"✅ 收到查询订单号：{order_nos}，正在处理...")
+
+            try:
+                url = f"http://8.217.186.177:5000/query?orderNo={order_nos}"
+                response = requests.get(url)
+                data = response.json()
+                # 提取 data 信息
+                results = data.get("data", [])
+                if results:
+                    messages = []
+                    for item in results:
+                        merchant_name = item.get("merchant_name", "未知商户")
+                        amount = item.get("amount", "未知金额")
+                        status = item.get("status", "")
+                        notify_status = item.get("notify_status", "")
+                        create_time = item.get("create_time", "未知时间")
+
+                        pay_status = "✅ 已支付" if status == "Paid" else "❌ 未支付"
+                        notify_state = "✅ 已回调" if notify_status == "Notify_Success" else "❌ 未回调"
+
+                        block_info = item.get("block_info", {})
+                        buyer_id = block_info.get("buyer_id", "未知")
+                        is_blocked = item.get("is_blocked", False)
+                        block_text = "🧱 是砖头" if is_blocked else "❓ 未知"
+
+                        msg = (
+                            f"📌 商户：{merchant_name}\n"
+                            f"💰 金额：{amount}\n"
+                            f"📥 支付状态：{pay_status}\n"
+                            f"📬 回调状态：{notify_state}\n"
+                            f"🆔 支付宝ID：{buyer_id}\n"
+                            f"🔍 是否为砖头：{block_text}\n"
+                            f"🕒 创建时间：{create_time}"
+                        )
+                        messages.append(msg)
+
+                    final_message = "\n\n".join(messages)
+                    update.message.reply_text(f"📦 查询结果：\n\n{final_message}")
+                else:
+                    update.message.reply_text("❗ 没有查询到结果")
+            except Exception as e:
+                update.message.reply_text(f"❌ 请求错误：{str(e)}")
+        else:
+            update.message.reply_text("⚠️ 格式错误，请发送格式如：查单 T3XXXXXX")
     else:
         # 忽略非查询指令
         pass
