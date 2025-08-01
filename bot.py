@@ -87,6 +87,10 @@ def handle_text(update, context):
                         is_blocked = item.get("is_blocked", False)
                         block_text = "🧱 是砖头" if is_blocked else "❓ 未知"
 
+                        remark = ""
+                        if status == "Paid" and notify_status != "Notify_Success" and not is_blocked:
+                            remark = "💡 备注：单日限制"
+
                         msg = (
                             f"📌 商户：{merchant_name}\n"
                             f"💰 金额：{amount}\n"
@@ -96,6 +100,8 @@ def handle_text(update, context):
                             f"🔍 是否为砖头：{block_text}\n"
                             f"🕒 创建时间：{create_time}"
                         )
+                        if remark:
+                            msg += f"\n{remark}"
                         messages.append(msg)
 
                     final_message = "\n\n".join(messages)
