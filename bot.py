@@ -7,16 +7,18 @@ import re
 
 def handle_text(update, context):
     message = update.message.text.strip()
+    # 第一步：将中文逗号替换成英文逗号
+    message = message.replace('，', ',')
 
     if message.startswith("转单"):
         # 提取订单号（假设格式是 查询 + 空格 + 订单号）
-        match = re.search(r'转单\s*([A-Z0-9]+)', message)
+        match = re.search(r'转单\s*([A-Z0-9,]+)', message)
         if match:
-            order_no = match.group(1)
-            update.message.reply_text(f"✅ 收到转单订单号：{order_no}，正在处理...")
+            order_nos = match.group(1)
+            update.message.reply_text(f"✅ 收到转单订单号：{order_nos}，正在处理...")
 
             try:
-                url = f"http://8.217.186.177:5000/convert?orderNos={order_no}"
+                url = f"http://8.217.186.177:5000/convert?orderNos={order_nos}"
                 response = requests.get(url)
                 data = response.json()
                 merchant_nos = [item["merchantTradeNo"] for item in data.get("results", [])]
@@ -28,7 +30,7 @@ def handle_text(update, context):
             except Exception as e:
                 update.message.reply_text(f"❌ 请求错误：{str(e)}")
         else:
-            update.message.reply_text("⚠️ 格式错误，请发送格式如：查询 T3XXXXXX")
+            update.message.reply_text("⚠️ 格式错误，请发送格式如：转单 T3XXXXXX")
     else:
         # 忽略非查询指令
         pass
