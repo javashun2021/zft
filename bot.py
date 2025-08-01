@@ -41,7 +41,18 @@ def handle_text(update, context):
             try:
                 url = f"http://8.217.186.177:5000/refund?type=1&orderNos={order_nos}"
                 response = requests.get(url)
-                update.message.reply_text(f"📦 结果：\n{response.text}")
+                data = response.json()
+                # 提取 msg 信息
+                results = data.get("results", [])
+                if results:
+                    messages = []
+                    for item in results:
+                        msg = item.get("response", {}).get("msg", "未知错误")
+                        messages.append(f"{item.get('orderNo', '未知订单')}：{msg}")
+                    final_message = "\n".join(messages)
+                    update.message.reply_text(f"📦 结果：\n{final_message}")
+                else:
+                    update.message.reply_text("❗ 没有查询到结果")
             except Exception as e:
                 update.message.reply_text(f"❌ 请求错误：{str(e)}")
         else:
