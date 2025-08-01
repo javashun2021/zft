@@ -2,7 +2,7 @@ import os
 import json
 import pymysql
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, timedelta
 
 query_bp = Blueprint('query', __name__)
 QUERY_FILE = "queryed_orders.json"
