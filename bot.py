@@ -1,43 +1,60 @@
-from telegram import Update
-from telegram import Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import time
-from io import BytesIO
+import logging
+import requests
+from telegram import Bot, Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
+
+# 日志配置
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 TOKEN = '5849011897:AAEUpFVWwE4PKVJq1UXusNjiZL3IfhZmS8E'
-GROUP_CHAT_ID = -4961641914  # 你的群组ID
+GROUP_CHAT_ID = -4961641914  # 群组 ID
 
-# 定义一个带参数的命令
-async def query(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args  # 获取参数列表
+# /convert 命令
+def convert(update: Update, context: CallbackContext):
+    args = context.args
     if not args:
-        await update.message.reply_text("请提供一个订单号，例如：/query 2025073198373")
+        update.message.reply_text("请提供订单号，例如：/convert 2025073198373")
         return
 
-    orderNum = " ".join(args)
-    await update.message.reply_text(f"你的订单查询结果是：{orderNum}")
+    order_nums = ",".join(args)
+    try:
+        response = requests.get(f"http://127.0.0.1:5000/convert?orderNos={order_nums}")
+        result = response.json()
+        update.message.reply_text(f"转化结果：\n{result}")
+    except Exception as e:
+        update.message.reply_text(f"转化失败：{str(e)}")
 
-async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    bot = Bot(token=TOKEN)
-    await bot.send_message(chat_id=GROUP_CHAT_ID, text="Hello 群组，这是我发的消息！")
-    await update.message.reply_text("你好，这是 /callback 指令")
+# /callback 命令
+def callback(update: Update, context: CallbackContext):
+    bot = context.bot
+    bot.send_message(chat_id=GROUP_CHAT_ID, text="Hello 群组，这是我发的消息！")
+    update.message.reply_text("你好，这是 /callback 指令")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("你好，这是 /start 指令")
+# /start 命令
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("你好，这是 /start 指令")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("你可以用 /start  /help /callback  /query")
+# /help 命令
+def help_command(update: Update, context: CallbackContext):
+    update.message.reply_text("你可以用 /start /help /callback /convert")
 
-async def loginZft(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("登入中")
+# /loginZft 命令
+def loginZft(update: Update, context: CallbackContext):
+    update.message.reply_text("登入中")
 
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("query",query))
-    app.add_handler(CommandHandler("callback", callback))
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("loginZft",loginZft))
-    app.add_handler(CommandHandler("help", help_command))
+def main():
+    updater = Updater(token=TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("help", help_command))
+    dp.add_handler(CommandHandler("callback", callback))
+    dp.add_handler(CommandHandler("convert", convert))
+    dp.add_handler(CommandHandler("loginZft", loginZft))
 
     print("Bot 正在运行...")
-    app.run_polling()
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
