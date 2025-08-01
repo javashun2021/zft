@@ -39,7 +39,7 @@ def handle_text(update, context):
             update.message.reply_text(f"✅ 收到退款订单号：{order_nos}，正在处理...")
 
             try:
-                url = f"http://8.217.186.177:5000/refund?orderNos={order_nos}"
+                url = f"http://8.217.186.177:5000/refund?type=1&orderNos={order_nos}"
                 response = requests.get(url)
                 update.message.reply_text(f"📦 结果：\n{response.text}")
             except Exception as e:
