@@ -7,6 +7,8 @@ from datetime import datetime
 query_bp = Blueprint('query', __name__)
 QUERY_FILE = "queryed_orders.json"
 
+CACHE_EXPIRE_SECONDS = 3600  # 缓存有效时间，单位秒（可改成 60*10 即10分钟）
+
 db_config = {
     "host": "javashun2021.mysql.rds.aliyuncs.com",
     "port": 3306,
