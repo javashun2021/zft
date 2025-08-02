@@ -3,11 +3,11 @@ import json
 import pymysql
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
-from DBUtils.PooledDB import PooledDB  # ✅ 引入连接池
+from DBUtils.PooledDB import PooledDB
+from filelock import FileLock  # ✅ 文件锁，防止并发写入问题
 
 query_bp = Blueprint('query', __name__)
 QUERY_FILE = "queryed_orders.json"
-
 CACHE_EXPIRE_SECONDS = 3600
 
 # ✅ 数据库配置
@@ -21,7 +21,7 @@ db_config = {
     "cursorclass": pymysql.cursors.DictCursor
 }
 
-# ✅ 创建连接池（只需初始化一次）
+# ✅ 创建连接池
 pool = PooledDB(
     creator=pymysql,
     maxconnections=10,
@@ -47,11 +47,12 @@ def load_cache():
             return {}
 
 def save_cache(cache):
-    with open(QUERY_FILE, 'w', encoding='utf-8') as f:
-        json.dump(cache, f, ensure_ascii=False, indent=2)
+    with FileLock(QUERY_FILE + ".lock"):  # ✅ 加锁写入
+        with open(QUERY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
 
 @query_bp.route('/query', methods=['GET'])
-def refund():
+def query_order():
     order_no = request.args.get('orderNo')
     if not order_no:
         return jsonify({"error": "缺少参数：orderNo"}), 400
@@ -65,8 +66,9 @@ def refund():
         if now - cached_time < timedelta(seconds=CACHE_EXPIRE_SECONDS):
             return jsonify({"data": cached_item["data"], "cached": True})
 
+    conn = None
     try:
-        conn = pool.connection()  # ✅ 从连接池中获取连接
+        conn = pool.connection()
         with conn.cursor() as cursor:
             sql1 = """
                 SELECT o.merchant_name, o.order_no, o.amount, o.user_id, o.client_ip, o.status, o.notify_status, o.create_time, ot.trace
@@ -77,41 +79,50 @@ def refund():
             cursor.execute(sql1, (order_no,))
             result = cursor.fetchall()
 
-            block_info = None
-
             if result:
                 trace = result[0].get("trace", "")
                 if trace.startswith("buyerId:"):
                     buyer_id = trace.replace("buyerId:", "")
-                    sql3 = "SELECT buyer_id,client_ip,user_id,create_time,content FROM `order_block` WHERE buyer_id = %s"
+                    sql3 = """
+                        SELECT buyer_id, client_ip, user_id, create_time, content
+                        FROM `order_block`
+                        WHERE buyer_id = %s
+                    """
                     cursor.execute(sql3, (buyer_id,))
                     block_result = cursor.fetchone()
                     if block_result:
-                        block_info = convert_datetime(block_result)
                         result[0]["is_blocked"] = True
-                        result[0]["block_info"] = block_info
+                        result[0]["block_info"] = convert_datetime(block_result)
                     else:
                         result[0]["is_blocked"] = False
+                        result[0]["block_info"] = {}
                 else:
                     result[0]["is_blocked"] = False
+                    result[0]["block_info"] = {}
             else:
                 sql2 = """
                     SELECT o.merchant_name, o.order_no, o.amount, o.user_id, o.client_ip, o.status, o.notify_status, o.create_time
-                    FROM `order` o WHERE platform_order_no = %s
+                    FROM `order` o
+                    WHERE platform_order_no = %s
                 """
                 cursor.execute(sql2, (order_no,))
                 result = cursor.fetchall()
+                if result:
+                    result[0]["is_blocked"] = False
+                    result[0]["block_info"] = {}
 
-        conn.close()  # ✅ 归还连接到连接池
-
-        if result:
-            converted_result = convert_datetime(result)
-            cache[order_no] = {
-                "data": converted_result,
-                "timestamp": now.strftime("%Y-%m-%d %H:%M:%S")
-            }
-            save_cache(cache)
+        converted_result = convert_datetime(result)
+        cache[order_no] = {
+            "data": converted_result,
+            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        save_cache(cache)
 
         return jsonify({"data": converted_result, "cached": False})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    finally:
+        if conn:
+            conn.close()  # ✅ 无论成功与否都归还连接
