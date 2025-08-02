@@ -85,11 +85,11 @@ def handle_text(update, context):
         match = re.search(r'统计\s*([A-Z0-9,]+)', message)
         if match:
             order_nos_raw = match.group(1)
-            order_nos = [no.strip() for no in order_nos_raw.split(',') if no.strip()]
-            update.message.reply_text(f"✅ 收到统计订单号：{', '.join(order_nos)}，正在处理...")
+            order_nos = list(set([no.strip() for no in order_nos_raw.split(',') if no.strip()]))  # 去重
+            update.message.reply_text(
+                f"✅ 收到统计订单号（去重后共 {len(order_nos)} 个）：{', '.join(order_nos)}，正在处理...")
 
-            # 初始化统计容器
-            merchant_stats = defaultdict(lambda: {'total_amount': 0.0, 'buyer_ids': set()})
+            merchant_stats = defaultdict(lambda: {'total_amount': 0.0, 'buyer_ids': set(), 'order_count': 0})
 
             for order_no in order_nos:
                 try:
@@ -102,9 +102,10 @@ def handle_text(update, context):
                             merchant = order.get("merchant_name", "未知商户")
                             amount = float(order.get("amount", "0.0"))
                             buyer_id = order.get("block_info", {}).get("buyer_id", "unknown")
-                            #test
+
                             merchant_stats[merchant]['total_amount'] += amount
                             merchant_stats[merchant]['buyer_ids'].add(buyer_id)
+                            merchant_stats[merchant]['order_count'] += 1
                         else:
                             update.message.reply_text(f"⚠️ 没查到订单：{order_no}")
                     else:
@@ -112,11 +113,14 @@ def handle_text(update, context):
                 except Exception as e:
                     update.message.reply_text(f"❌ 请求异常：{order_no}，错误：{str(e)}")
 
-                # 汇总输出
+            # 汇总输出
             summary_lines = ["📊 统计结果："]
             for merchant, stat in merchant_stats.items():
                 summary_lines.append(
-                    f"商户：{merchant}\n- 总金额：{stat['total_amount']:.2f} 元\n- 支付宝用户数：{len(stat['buyer_ids'])}"
+                    f"商户：{merchant}\n"
+                    f"- 总金额：{stat['total_amount']:.2f} 元\n"
+                    f"- 支付宝ID数：{len(stat['buyer_ids'])}\n"
+                    f"- 订单数：{stat['order_count']} 单"
                 )
             summary_text = "\n\n".join(summary_lines)
 
