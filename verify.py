@@ -61,7 +61,7 @@ def verify_image():
             if ',' in raw_base64:
                 raw_base64 = raw_base64.split(',')[1]
             image_base64 = raw_base64.strip().replace('\n', '')
-            print(image_base64)
+
         else:
             return jsonify({"error": "No valid image input provided"}), 400
 
