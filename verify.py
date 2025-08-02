@@ -7,6 +7,8 @@ import hashlib
 import json
 import requests
 import traceback
+import logging
+logging.basicConfig(level=logging.INFO)
 
 verify_bp = Blueprint('verify', __name__)
 VERIFIED_FILE = "verified.json"
@@ -93,9 +95,11 @@ def verify_image():
 
         # 4. 输出结果
         data = response.json()
-        print(data)
+
+        # 在你的 verify_image 函数里
+        logging.info("百度返回内容：%s", json.dumps(data, ensure_ascii=False))
         result = data['words_result'][0]['words']
-        print("验证码内容是：", result)
+
 
         verified_cache[image_hash] = result
 
