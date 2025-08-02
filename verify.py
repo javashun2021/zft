@@ -6,6 +6,7 @@ import io
 import hashlib
 import json
 import requests
+import traceback
 
 verify_bp = Blueprint('verify', __name__)
 VERIFIED_FILE = "verified.json"
@@ -102,8 +103,12 @@ def verify_image():
 
         return jsonify({"cached": False, "result": result})
 
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "trace": traceback.format_exc()  # 追加完整堆栈信息
+        }), 500
 
 
 
