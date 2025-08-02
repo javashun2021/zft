@@ -38,7 +38,7 @@ def save_cache(cache):
     with open(QUERY_FILE, 'w', encoding='utf-8') as f:
         json.dump(cache, f, ensure_ascii=False, indent=2)
 
-@query_bp.route('/querys', methods=['GET'])
+@querys_bp.route('/querys', methods=['GET'])
 def query_multiple_orders():
     order_nos_str = request.args.get('orderNos')
     if not order_nos_str:
