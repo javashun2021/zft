@@ -7,6 +7,7 @@ from querys import querys_bp
 from verify import verify_bp
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 设置最大请求体为 50MB
 app.register_blueprint(login_bp)
 app.register_blueprint(convert_bp)
 app.register_blueprint(refund_bp)

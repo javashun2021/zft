@@ -30,12 +30,12 @@ def encode_image_to_base64(img: Image.Image) -> str:
 def get_image_hash(base64_str: str) -> str:
     return hashlib.sha1(base64_str.encode('utf-8')).hexdigest()
 
-@verify_bp.route('/verify-image', methods=['POST'])
+@verify_bp.route('/verify', methods=['POST'])
 def verify_image():
     image_base64 = None
 
     try:
-        # 1. 接收 image_path
+        # 1. 接收 image_path 请求方式如下  curl -X POST http://127.0.0.1:5000/verify -F "image_path=/absolute/path/to/your/image.png"
         if 'image_path' in request.form:
             image_path = request.form['image_path']
             if not os.path.exists(image_path):
@@ -43,13 +43,13 @@ def verify_image():
             with Image.open(image_path) as img:
                 image_base64 = encode_image_to_base64(img)
 
-        # 2. 接收 image_file
+        # 2. 接收 image_file 请求方式如下：curl -X POST http://127.0.0.1:5000/verify -F "image_file=@/absolute/path/to/your/image.png"
         elif 'image_file' in request.files:
             file = request.files['image_file']
             img = Image.open(file.stream)
             image_base64 = encode_image_to_base64(img)
 
-        # 3. 接收 base64 文本
+        # 3. 接收 base64 文本  请求方式如下： curl -X POST http://127.0.0.1:5000/verify -F "image_base64=你的base64字符串"
         elif 'image_base64' in request.form:
             raw_base64 = request.form['image_base64']
             image_base64 = raw_base64.strip().replace('\n', '')
