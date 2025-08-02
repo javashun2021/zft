@@ -6,12 +6,22 @@ import re
 MAX_PER_BATCH = 100
 MAX_TELEGRAM_MSG_LEN = 4000  # Telegram 最大字符数
 
+# 全局缓存
+user_order_buffer = defaultdict(list)
+
+# 提取订单号
+def extract_order_nos(message):
+    message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
+    message = re.sub(r',+', ',', message).strip(',')
+    return [no.strip() for no in message.split(',') if no.strip()]
+
 def send_long_message(context, chat_id, text):
     for i in range(0, len(text), MAX_TELEGRAM_MSG_LEN):
         context.bot.send_message(chat_id=chat_id, text=text[i:i + MAX_TELEGRAM_MSG_LEN])
 
 def handle_text(update, context):
     message = update.message.text.strip()
+    user_id = update.effective_user.id
     # 第一步：将中文逗号替换成英文逗号
     # message = message.replace('，', ',')
     # 检查是否含有换行符，用于决定返回格式
@@ -84,69 +94,65 @@ def handle_text(update, context):
         else:
             update.message.reply_text("⚠️ 格式错误，请发送格式如：退款 T3XXXXXX")
     elif message.startswith("统计"):
-        # 提取订单号（假设格式是 查询 + 空格 + 订单号）
-        message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
-        message = re.sub(r',+', ',', message).strip(',')  # 合并多余逗号，去首尾逗号
-        # 提取订单号列表
-        match = re.search(r'统计\s*([A-Z0-9,]+)', message)
-        if match:
-            order_nos_raw = match.group(1)
-            order_nos = list(set([no.strip() for no in order_nos_raw.split(',') if no.strip()]))  # 去重
-            update.message.reply_text(
-                f"✅ 收到统计订单号（去重后共 {len(order_nos)} 个），正在分批处理..."
+        order_nos = extract_order_nos(message)
+        user_order_buffer[user_id].extend(order_nos)
+        update.message.reply_text(f"✅ 收到 {len(order_nos)} 个订单号，继续发送或输入 /统计结束 开始统计")
+
+    elif message == "结束":
+        all_order_nos = list(set(user_order_buffer[user_id]))  # 去重
+        user_order_buffer[user_id].clear()
+        if not all_order_nos:
+            update.message.reply_text("⚠️ 还没有收到任何订单号，请先发送 统计 + 订单号")
+            return
+        update.message.reply_text(f"✅ 共收到去重后 {len(all_order_nos)} 个订单号，开始统计...")
+
+        merchant_stats = defaultdict(lambda: {
+            'total_amount': 0.0,
+            'buyer_ids': set(),
+            'order_count': 0
+        })
+        failed_orders = []
+
+        # 分批处理
+        for i in range(0, len(all_order_nos), MAX_PER_BATCH):
+            batch = all_order_nos[i:i + MAX_PER_BATCH]
+            for order_no in batch:
+                try:
+                    resp = requests.get("http://127.0.0.1:5000/query", params={"orderNo": order_no}, timeout=5)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        order_list = data.get("data", [])
+                        if order_list:
+                            order = order_list[0]
+                            merchant = order.get("merchant_name", "未知商户")
+                            amount = float(order.get("amount", "0.0"))
+                            buyer_id = order.get("block_info", {}).get("buyer_id", "unknown")
+
+                            merchant_stats[merchant]['total_amount'] += amount
+                            merchant_stats[merchant]['buyer_ids'].add(buyer_id)
+                            merchant_stats[merchant]['order_count'] += 1
+                        else:
+                            failed_orders.append(f"⚠️ 没查到订单：{order_no}")
+                    else:
+                        failed_orders.append(f"❌ 接口错误：{order_no}，状态码：{resp.status_code}")
+                except Exception as e:
+                    failed_orders.append(f"❌ 请求异常：{order_no}，错误：{str(e)}")
+
+        # 生成汇总信息
+        summary_lines = ["📊 统计结果："]
+        for merchant, stat in merchant_stats.items():
+            summary_lines.append(
+                f"商户：{merchant}\n"
+                f"- 总金额：{stat['total_amount']:.2f} 元\n"
+                f"- 支付宝ID数：{len(stat['buyer_ids'])}\n"
+                f"- 订单数：{stat['order_count']} 单"
             )
 
-            merchant_stats = defaultdict(lambda: {
-                'total_amount': 0.0,
-                'buyer_ids': set(),
-                'order_count': 0
-            })
+        if failed_orders:
+            summary_lines.append("\n🚫 以下订单处理失败：\n" + "\n".join(failed_orders))
 
-            failed_orders = []
-
-            # 分批处理
-            for i in range(0, len(order_nos), MAX_PER_BATCH):
-                batch = order_nos[i:i + MAX_PER_BATCH]
-                for order_no in batch:
-                    try:
-                        resp = requests.get("http://127.0.0.1:5000/query", params={"orderNo": order_no}, timeout=5)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            order_list = data.get("data", [])
-                            if order_list:
-                                order = order_list[0]
-                                merchant = order.get("merchant_name", "未知商户")
-                                amount = float(order.get("amount", "0.0"))
-                                buyer_id = order.get("block_info", {}).get("buyer_id", "unknown")
-
-                                merchant_stats[merchant]['total_amount'] += amount
-                                merchant_stats[merchant]['buyer_ids'].add(buyer_id)
-                                merchant_stats[merchant]['order_count'] += 1
-                            else:
-                                failed_orders.append(f"⚠️ 没查到订单：{order_no}")
-                        else:
-                            failed_orders.append(f"❌ 接口错误：{order_no}，状态码：{resp.status_code}")
-                    except Exception as e:
-                        failed_orders.append(f"❌ 请求异常：{order_no}，错误：{str(e)}")
-
-            # 汇总输出
-            summary_lines = ["📊 统计结果："]
-            for merchant, stat in merchant_stats.items():
-                summary_lines.append(
-                    f"商户：{merchant}\n"
-                    f"- 总金额：{stat['total_amount']:.2f} 元\n"
-                    f"- 支付宝ID数：{len(stat['buyer_ids'])}\n"
-                    f"- 订单数：{stat['order_count']} 单"
-                )
-
-            # 添加错误信息（如有）
-            if failed_orders:
-                summary_lines.append("\n🚫 以下订单处理失败：\n" + "\n".join(failed_orders))
-
-            # 拼接完整文本
-            full_summary = "\n\n".join(summary_lines)
-            send_long_message(context, update.effective_chat.id, full_summary)
-
+        full_summary = "\n\n".join(summary_lines)
+        send_long_message(context, update.effective_chat.id, full_summary)
     elif message.startswith("查单"):
         # 提取订单号（假设格式是 查询 + 空格 + 订单号）
         message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
