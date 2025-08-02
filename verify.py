@@ -9,7 +9,7 @@ import requests
 
 verify_bp = Blueprint('verify', __name__)
 VERIFIED_FILE = "verified.json"
-OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"  # 请替换成你的 OpenAI API 密钥
+OPENAI_API_KEY = "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"  # 请替换成你的 OpenAI API 密钥
 
 # 加载缓存
 if os.path.exists(VERIFIED_FILE):
