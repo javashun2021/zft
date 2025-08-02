@@ -86,7 +86,7 @@ def verify_image():
 
         # 3. 发送请求
         response = requests.post(url, headers=headers, data=payload)
-
+        print(response)
         # 4. 输出结果
         data = response.json()
         result = data['words_result'][0]['words']
