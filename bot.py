@@ -102,7 +102,7 @@ def handle_text(update, context):
                             merchant = order.get("merchant_name", "未知商户")
                             amount = float(order.get("amount", "0.0"))
                             buyer_id = order.get("block_info", {}).get("buyer_id", "unknown")
-
+                            #test
                             merchant_stats[merchant]['total_amount'] += amount
                             merchant_stats[merchant]['buyer_ids'].add(buyer_id)
                         else:
