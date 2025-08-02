@@ -93,6 +93,7 @@ def verify_image():
 
         # 4. 输出结果
         data = response.json()
+        print(data)
         result = data['words_result'][0]['words']
         print("验证码内容是：", result)
 
