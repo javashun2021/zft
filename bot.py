@@ -1,5 +1,3 @@
-
-
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import requests
 import re
@@ -8,8 +6,8 @@ import re
 def handle_text(update, context):
     message = update.message.text.strip()
     # 第一步：将中文逗号替换成英文逗号
-    #message = message.replace('，', ',')
-    message = message.replace('，', ',').replace(' ', '')
+    # message = message.replace('，', ',')
+    message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
     if message.startswith("转单"):
         # 提取订单号（假设格式是 查询 + 空格 + 订单号）
         match = re.search(r'转单\s*([A-Z0-9,]+)', message)
@@ -116,15 +114,17 @@ def handle_text(update, context):
         # 忽略非查询指令
         pass
 
+
 def main():
     updater = Updater("5849011897:AAEUpFVWwE4PKVJq1UXusNjiZL3IfhZmS8E", use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
-    #dp.add_handler(CommandHandler("convert", convert))  # 注册命令
+    # dp.add_handler(CommandHandler("convert", convert))  # 注册命令
 
     updater.start_polling()
     updater.idle()
+
 
 if __name__ == "__main__":  # 注意这里是 __name__
     main()
