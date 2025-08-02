@@ -82,7 +82,7 @@ def handle_text(update, context):
         message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
         message = re.sub(r',+', ',', message).strip(',')  # 合并多余逗号，去首尾逗号
         # 提取订单号列表
-        match = re.search(r'查单\s*([A-Z0-9,]+)', message)
+        match = re.search(r'统计\s*([A-Z0-9,]+)', message)
         if match:
             order_nos_raw = match.group(1)
             order_nos = [no.strip() for no in order_nos_raw.split(',') if no.strip()]
@@ -116,7 +116,7 @@ def handle_text(update, context):
             summary_lines = ["📊 统计结果："]
             for merchant, stat in merchant_stats.items():
                 summary_lines.append(
-                    f"商户：{merchant}\n- 总金额：{stat['total_amount']:.2f} 元\n- 唯一支付宝用户数：{len(stat['buyer_ids'])}"
+                    f"商户：{merchant}\n- 总金额：{stat['total_amount']:.2f} 元\n- 支付宝用户数：{len(stat['buyer_ids'])}"
                 )
             summary_text = "\n\n".join(summary_lines)
 
