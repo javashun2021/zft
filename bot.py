@@ -8,33 +8,50 @@ def handle_text(update, context):
     # 第一步：将中文逗号替换成英文逗号
     # message = message.replace('，', ',')
     # 检查是否含有换行符，用于决定返回格式
-    needRow = '\n' in message
+    #needRow = '\n' in message
 
-    message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
-    message = re.sub(r',+', ',', message).strip(',')  # 合并多余逗号，去首尾逗号
+    #message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
+    #message = re.sub(r',+', ',', message).strip(',')  # 合并多余逗号，去首尾逗号
     if message.startswith("转单"):
-        # 提取订单号（假设格式是 查询 + 空格 + 订单号）
-        match = re.search(r'转单\s*([A-Z0-9,]+)', message)
-        if match:
-            order_nos = match.group(1)
-            update.message.reply_text(f"✅ 收到转单订单号：{order_nos}，正在处理...")
+        # 去掉前缀“转单”，然后保留换行结构
+        message_body = message[len("转单"):].strip()
+
+        # 把每一行提取出来（保留行结构）
+        lines = [line.strip() for line in message_body.splitlines() if line.strip()]
+
+        all_results = []
+
+        for line in lines:
+            # 替换中文逗号为英文逗号，清理多余空格
+            clean_line = re.sub(r',+', ',', line.replace('，', ',').replace(' ', ',')).strip(',')
+
+            if not re.match(r'^[A-Z0-9,]+$', clean_line):
+                update.message.reply_text("⚠️ 检测到非法字符，请确认订单号格式正确")
+                return
 
             try:
-                url = f"http://8.217.186.177:5000/convert?orderNos={order_nos}"
-                response = requests.get(url)
+                url = f"http://8.217.186.177:5000/convert?orderNos={clean_line}"
+                response = requests.get(url, timeout=10)
                 data = response.json()
                 merchant_nos = [item["merchantTradeNo"] for item in data.get("results", [])]
+
                 if merchant_nos:
-                    result = "\n".join(merchant_nos) if needRow else ",".join(merchant_nos)
-                    update.message.reply_text(f"📦 结果：\n{result}")
+                    result_line = ",".join(merchant_nos)
                 else:
-                    update.message.reply_text("❗ 没有找到任何结果")
+                    result_line = "❗该行未查到结果"
+
+                all_results.append(result_line)
             except Exception as e:
                 update.message.reply_text(f"❌ 请求错误：{str(e)}")
-        else:
-            update.message.reply_text("⚠️ 格式错误，请发送格式如：转单 T3XXXXXX")
+                return
+
+        final_reply = "\n".join(all_results)
+        update.message.reply_text(f"📦 结果：\n{final_reply}")
     elif message.startswith("退款"):
         # 提取订单号（假设格式是 查询 + 空格 + 订单号）
+        message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
+        message = re.sub(r',+', ',', message).strip(',')  # 合并多余逗号，去首尾逗号
+
         match = re.search(r'退款\s*([A-Z0-9,]+)', message)
         if match:
             order_nos = match.group(1)
