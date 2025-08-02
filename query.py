@@ -1,34 +1,19 @@
 import os
 import json
-import pymysql
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
-from DBUtils.PooledDB import PooledDB
 from filelock import FileLock  # ✅ 文件锁，防止并发写入问题
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 query_bp = Blueprint('query', __name__)
 QUERY_FILE = "queryed_orders.json"
 CACHE_EXPIRE_SECONDS = 3600
 
 # ✅ 数据库配置
-db_config = {
-    "host": "javashun2021.mysql.rds.aliyuncs.com",
-    "port": 3306,
-    "user": "root",
-    "password": "Nizuibang521",
-    "database": "third_payment",
-    "charset": "utf8mb4",
-    "cursorclass": pymysql.cursors.DictCursor
-}
-
-# ✅ 创建连接池
-pool = PooledDB(
-    creator=pymysql,
-    maxconnections=10,
-    mincached=2,
-    blocking=True,
-    **db_config
-)
+DB_URI = "mysql+pymysql://root:Nizuibang521@javashun2021.mysql.rds.aliyuncs.com:3306/third_payment?charset=utf8mb4"
+engine = create_engine(DB_URI, pool_pre_ping=True)
+Session = sessionmaker(bind=engine)
 
 def convert_datetime(obj):
     if isinstance(obj, list):
@@ -47,7 +32,7 @@ def load_cache():
             return {}
 
 def save_cache(cache):
-    with FileLock(QUERY_FILE + ".lock"):  # ✅ 加锁写入
+    with FileLock(QUERY_FILE + ".lock"):
         with open(QUERY_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache, f, ensure_ascii=False, indent=2)
 
@@ -66,52 +51,53 @@ def query_order():
         if now - cached_time < timedelta(seconds=CACHE_EXPIRE_SECONDS):
             return jsonify({"data": cached_item["data"], "cached": True})
 
-    conn = None
+    session = Session()
     try:
-        conn = pool.connection()
-        with conn.cursor() as cursor:
-            sql1 = """
-                SELECT o.merchant_name, o.order_no, o.amount, o.user_id, o.client_ip, o.status, o.notify_status, o.create_time, ot.trace
-                FROM `order` o
-                LEFT JOIN order_trace ot ON o.order_no = ot.order_no
-                WHERE o.platform_order_no = %s AND ot.trace LIKE 'buyerId:%%'
-            """
-            cursor.execute(sql1, (order_no,))
-            result = cursor.fetchall()
+        sql1 = text("""
+            SELECT o.merchant_name, o.order_no, o.amount, o.user_id, o.client_ip, o.status, o.notify_status, o.create_time, ot.trace
+            FROM `order` o
+            LEFT JOIN order_trace ot ON o.order_no = ot.order_no
+            WHERE o.platform_order_no = :order_no AND ot.trace LIKE 'buyerId:%'
+        """)
+        result = session.execute(sql1, {"order_no": order_no}).mappings().all()
 
-            if result:
-                trace = result[0].get("trace", "")
-                if trace.startswith("buyerId:"):
-                    buyer_id = trace.replace("buyerId:", "")
-                    sql3 = """
-                        SELECT buyer_id, client_ip, user_id, create_time, content
-                        FROM `order_block`
-                        WHERE buyer_id = %s
-                    """
-                    cursor.execute(sql3, (buyer_id,))
-                    block_result = cursor.fetchone()
-                    if block_result:
-                        result[0]["is_blocked"] = True
-                        result[0]["block_info"] = convert_datetime(block_result)
-                    else:
-                        result[0]["is_blocked"] = False
-                        result[0]["block_info"] = {}
+        if result:
+            row = dict(result[0])
+            trace = row.get("trace", "")
+            if trace.startswith("buyerId:"):
+                buyer_id = trace.replace("buyerId:", "")
+                sql3 = text("""
+                    SELECT buyer_id, client_ip, user_id, create_time, content
+                    FROM `order_block`
+                    WHERE buyer_id = :buyer_id
+                """)
+                block_result = session.execute(sql3, {"buyer_id": buyer_id}).mappings().first()
+                if block_result:
+                    row["is_blocked"] = True
+                    row["block_info"] = convert_datetime(dict(block_result))
                 else:
-                    result[0]["is_blocked"] = False
-                    result[0]["block_info"] = {}
+                    row["is_blocked"] = False
+                    row["block_info"] = {}
             else:
-                sql2 = """
-                    SELECT o.merchant_name, o.order_no, o.amount, o.user_id, o.client_ip, o.status, o.notify_status, o.create_time
-                    FROM `order` o
-                    WHERE platform_order_no = %s
-                """
-                cursor.execute(sql2, (order_no,))
-                result = cursor.fetchall()
-                if result:
-                    result[0]["is_blocked"] = False
-                    result[0]["block_info"] = {}
+                row["is_blocked"] = False
+                row["block_info"] = {}
+            result_data = [row]
+        else:
+            sql2 = text("""
+                SELECT o.merchant_name, o.order_no, o.amount, o.user_id, o.client_ip, o.status, o.notify_status, o.create_time
+                FROM `order` o
+                WHERE platform_order_no = :order_no
+            """)
+            result = session.execute(sql2, {"order_no": order_no}).mappings().all()
+            if result:
+                row = dict(result[0])
+                row["is_blocked"] = False
+                row["block_info"] = {}
+                result_data = [row]
+            else:
+                result_data = []
 
-        converted_result = convert_datetime(result)
+        converted_result = convert_datetime(result_data)
         cache[order_no] = {
             "data": converted_result,
             "timestamp": now.strftime("%Y-%m-%d %H:%M:%S")
@@ -124,5 +110,4 @@ def query_order():
         return jsonify({"error": str(e)}), 500
 
     finally:
-        if conn:
-            conn.close()  # ✅ 无论成功与否都归还连接
+        session.close()
