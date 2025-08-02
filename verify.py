@@ -57,8 +57,11 @@ def verify_image():
 
         elif 'image_base64' in data:
             raw_base64 = data['image_base64']
+            # 如果是 data:image/png;base64,... 的形式，需要去掉前缀
+            if ',' in raw_base64:
+                raw_base64 = raw_base64.split(',')[1]
             image_base64 = raw_base64.strip().replace('\n', '')
-
+            print(image_base64)
         else:
             return jsonify({"error": "No valid image input provided"}), 400
 
@@ -86,7 +89,7 @@ def verify_image():
 
         # 3. 发送请求
         response = requests.post(url, headers=headers, data=payload)
-        print(response)
+
         # 4. 输出结果
         data = response.json()
         result = data['words_result'][0]['words']
