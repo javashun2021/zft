@@ -7,7 +7,11 @@ def handle_text(update, context):
     message = update.message.text.strip()
     # 第一步：将中文逗号替换成英文逗号
     # message = message.replace('，', ',')
+    # 检查是否含有换行符，用于决定返回格式
+    needRow = '\n' in message
+
     message = message.replace('，', ',').replace(' ', ',').replace('\n', ',')
+    message = re.sub(r',+', ',', message).strip(',')  # 合并多余逗号，去首尾逗号
     if message.startswith("转单"):
         # 提取订单号（假设格式是 查询 + 空格 + 订单号）
         match = re.search(r'转单\s*([A-Z0-9,]+)', message)
@@ -21,7 +25,7 @@ def handle_text(update, context):
                 data = response.json()
                 merchant_nos = [item["merchantTradeNo"] for item in data.get("results", [])]
                 if merchant_nos:
-                    result = ",".join(merchant_nos)
+                    result = "\n".join(merchant_nos) if needRow else ",".join(merchant_nos)
                     update.message.reply_text(f"📦 结果：\n{result}")
                 else:
                     update.message.reply_text("❗ 没有找到任何结果")
