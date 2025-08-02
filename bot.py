@@ -94,9 +94,10 @@ def handle_text(update, context):
         else:
             update.message.reply_text("⚠️ 格式错误，请发送格式如：退款 T3XXXXXX")
     elif message.startswith("统计"):
+        message = re.search(r'统计\s*([A-Z0-9,]+)', message)
         order_nos = extract_order_nos(message)
         user_order_buffer[user_id].extend(order_nos)
-        update.message.reply_text(f"✅ 收到 {len(order_nos)} 个订单号，继续发送或输入 /统计结束 开始统计")
+        update.message.reply_text(f"✅ 收到 {len(order_nos)} 个订单号，继续发送或输入 结束 开始统计")
 
     elif message == "结束":
         all_order_nos = list(set(user_order_buffer[user_id]))  # 去重
