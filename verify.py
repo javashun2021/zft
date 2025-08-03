@@ -97,7 +97,7 @@ def verify_image():
         data = response.json()
 
         # 在你的 verify_image 函数里
-        logging.info("百度返回内容：%s", json.dumps(data, ensure_ascii=False))
+        logging.info("result：%s", json.dumps(data, ensure_ascii=False))
         result = data['words_result'][0]['words']
 
 
