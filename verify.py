@@ -69,6 +69,8 @@ def verify_image():
             return jsonify({"error": "No valid image input provided"}), 400
 
         image_hash = get_image_hash(image_base64)
+        # 在你的 verify_image 函数里
+        logging.info("image_hash：%s", image_hash)
         if image_hash in verified_cache:
             return jsonify({"cached": True, "result": verified_cache[image_hash]})
 
