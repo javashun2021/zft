@@ -8,7 +8,7 @@ import json
 import requests
 import traceback
 import logging
-import pytesseract
+#import pytesseract
 import cv2
 import numpy as np
 
@@ -85,47 +85,46 @@ def verify_image():
         if image_hash in verified_cache:
             return jsonify({"cached": True, "result": verified_cache[image_hash]})
 
-        result = preprocess_image(image_bytes)
-
-        if not result or not result.strip():
+        #result = preprocess_image(image_bytes)
+        preprocess_image(image_bytes)
+        #if not result or not result.strip():
             #return jsonify({"error": "识别结果为空"}), 400
 
         # 1. 读取图片并转换为base64
         #image_path = "test.png"  # 替换为你的验证码图片路径
         #with open(image_path, "rb") as f:
             #image_base64 = base64.b64encode(f.read()).decode('utf-8')
-            if not os.path.exists("output_images/step_7_opening.jpg"):
-                return jsonify({"error": "output_images File path not found"}), 400
-            with Image.open("output_images/step_7_opening.jpg") as img:
-                image_base64 = encode_image_to_base64(img)
+        if not os.path.exists("output_images/step_7_opening.jpg"):
+            return jsonify({"error": "output_images File path not found"}), 400
+        with Image.open("output_images/step_7_opening.jpg") as img:
+            image_base64 = encode_image_to_base64(img)
 
-            # 2. 构造请求URL和参数
-            url = "https://aip.baidubce.com/rest/2.0/ocr/v1/numbers?access_token=" + get_access_token()
+        # 2. 构造请求URL和参数
+        url = "https://aip.baidubce.com/rest/2.0/ocr/v1/numbers?access_token=" + get_access_token()
 
-            payload = {
-                'image': image_base64,  # 关键参数：上传base64格式的图片
-                'detect_direction': 'false'  # 是否检测图像朝向
-            }
+        payload = {
+            'image': image_base64,  # 关键参数：上传base64格式的图片
+            'detect_direction': 'false'  # 是否检测图像朝向
+        }
 
-            headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json'
-            }
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        }
 
-            # 3. 发送请求
-            response = requests.post(url, headers=headers, data=payload)
+        # 3. 发送请求
+        response = requests.post(url, headers=headers, data=payload)
 
-            # 4. 输出结果
-            data = response.json()
+        # 4. 输出结果
+        data = response.json()
 
-            # 在你的 verify_image 函数里
-            logging.info("result：%s", json.dumps(data, ensure_ascii=False))
+        # 在你的 verify_image 函数里
+        logging.info("result：%s", json.dumps(data, ensure_ascii=False))
 
-            if 'words_result' not in data or not data['words_result']:
-                return jsonify({"error": "未识别出任何文字"}), 400
+        if 'words_result' not in data or not data['words_result']:
+            return jsonify({"error": "未识别出任何文字"}), 400
 
-            result = data['words_result'][0]['words']
-
+        result = data['words_result'][0]['words']
 
         verified_cache[image_hash] = result
 
@@ -205,6 +204,6 @@ def preprocess_image(image_bytes):
     cv2.imwrite(os.path.join(output_dir, "step_7_opening.jpg"), bigger)
 
     # OCR 识别（只识别数字）
-    code = pytesseract.image_to_string(bigger, config='--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789 -c classify_bln_numeric_mode=1')
+    #code = pytesseract.image_to_string(bigger, config='--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789 -c classify_bln_numeric_mode=1')
 
-    return code
+    #return code
