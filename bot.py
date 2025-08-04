@@ -33,6 +33,7 @@ def handle_text(update, context):
         # 去掉前缀“转单”，然后保留换行结构
         message_body = message[len("转单"):].strip()
 
+        update.message.reply_text(f"✅ 收到转单请求，正在处理...")
         # 把每一行提取出来（保留行结构）
         lines = [line.strip() for line in message_body.splitlines() if line.strip()]
 
